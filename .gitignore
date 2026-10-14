@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+logs/
+*.log
+audio-fp-status.json
+dist/
