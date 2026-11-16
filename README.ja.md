@@ -1,8 +1,8 @@
-# FF7 Remake Audio Denormal Fix v0.1.0
+# FF7 Remake / Rebirth Audio Denormal Fix v0.2.0
 
 [English](README.md) | [変更履歴](CHANGELOG.md)
 
-『FINAL FANTASY VII REMAKE』の音声が途切れる問題に対処するMODです。
+『FINAL FANTASY VII REMAKE』『FINAL FANTASY VII REBIRTH』の音声が途切れる問題に対処するMODです。
 
 調査した環境では、音声ミキサーの処理中に非正規化浮動小数点数（denormal）が発生し、SSE演算が極端に遅くなる現象を確認しました。
 
@@ -28,14 +28,19 @@
 | 項目 | 環境 |
 |---|---|
 | OS | Linux x86-64 |
-| Proton | CachyOS 11.0-20261005-slr |
-| ゲーム | FF7 Remake EXE build 1.0.0.6 |
+| Proton | CachyOS 11.0-20261005-slr (Remake), 11.0-20261015-slr (Rebirth) |
+| ゲーム | Remake EXE FileVersion 1.0.0.6 / Rebirth EXE FileVersion 1.0.0.0 |
 
 対象EXE：
 
 ```text
 End/Binaries/Win64/ff7remake_.exe
+End/Binaries/Win64/ff7rebirth_.exe
 ```
+
+`ff7remake.exe` / `ff7rebirth.exe`（または各shipping EXE）の名前から対象ゲームを自動選択します。
+音声DSPのブレークポイントはタイトル別で、Remakeは`0x3fe8259`、Rebirthは`0x736ab0`です。
+EXEのハッシュ・バージョン・命令署名による別ビルドの拒否は行いません。上記は検証済みの構成です。
 
 Windowsでも同じ方法で対処できる可能性はありますが、未検証です。異なるEXEでの動作も未確認です。
 
@@ -57,7 +62,7 @@ Windowsでも同じ方法で対処できる可能性はありますが、未検�
 2. 配布ZIPを任意の固定ディレクトリに展開します。`fix-launch.py`と`fix-startup.gdb`は同じディレクトリに置いてください。
 3. 起動スクリプトのUMU実行部分を変更します。
 
-変更前：
+変更前（Remakeの例）：
 
 ```sh
 /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
@@ -65,8 +70,16 @@ Windowsでも同じ方法で対処できる可能性はありますが、未検�
 
 変更後：
 
+Remake:
+
 ```sh
 /usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
+```
+
+Rebirth:
+
+```sh
+/usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7rebirth.exe" "$@"
 ```
 
 `$fixdir`にはMODを展開したディレクトリの絶対パスを指定してください。
@@ -114,6 +127,8 @@ MODのファイルが残っていても、ランチャーから呼び出さな�
 
 ## 検証結果
 
+### Remake
+
 音切れが発生していた環境で、同じゲームプロセス・同じ場面のまま、修正ON → OFF → ONの順に比較しました。
 
 48 kHzステレオでホスト側の音声を録音し、左右両チャンネルが同時に10 ms以上連続してゼロになった区間を数えています。録音開始時の無音区間は含めていません。
@@ -127,6 +142,13 @@ MODのファイルが残っていても、ランチャーから呼び出さな�
 修正を無効にすると音声の途切れが再発し、再度有効にすると検出されなくなりました。
 
 元のPulse経路でも30秒間の録音でゼロ区間は0件でした。また、15秒間のWine Pulseトレースでは、1,500回の`ReleaseBuffer`呼び出しに対してunderflowは0件でした。
+
+### Rebirth
+
+実際の音声DSPで非正規化数とFTZ/DAZ未設定を確認しました。
+Rebirth専用の起動時処理でミキサースレッドへのフラグ適用・デバッガ切り離しを確認しています。
+通常メニューの30秒録音は修正ON/OFFとも10 ms以上の内部ゼロ区間が0件で、その区間では申告された音切れを再現しませんでした。
+そのため、この測定だけで音切れ解消を実証したとはしていません。長時間プレイ・聴感は未確認です。
 
 ## 参考資料
 

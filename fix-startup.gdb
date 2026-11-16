@@ -16,12 +16,24 @@ import subprocess
 import threading
 import time
 
-RVA = 0x3fe8259
 argv = json.loads(os.environ['FF7_AUDIO_COMMAND'])
 prefix = Path(os.environ['WINEPREFIX']).resolve()
-exe = Path(argv[1]).parent / 'End/Binaries/Win64/ff7remake_.exe'
+profiles = {
+    'remake': ('ff7remake_.exe', 0x3fe8259),
+    'rebirth': ('ff7rebirth_.exe', 0x736ab0),
+}
+# Select by launch executable, never by a build/hash allowlist.
+launch_exe = Path(argv[1]).resolve()
+game = os.environ.get('FF7_AUDIO_GAME')
+if game is None:
+    game = {'ff7remake.exe': 'remake', 'ff7remake_.exe': 'remake',
+            'ff7rebirth.exe': 'rebirth', 'ff7rebirth_.exe': 'rebirth'}.get(launch_exe.name.lower())
+if game not in profiles:
+    raise gdb.GdbError('Cannot select game; use FF7_AUDIO_GAME=remake or rebirth')
+process_name, rva = profiles[game]
+exe = launch_exe if launch_exe.name.lower() == process_name else launch_exe.parent / 'End/Binaries/Win64' / process_name
 status_path = Path(os.environ['FF7_AUDIO_STATUS'])
-status = {'applied': False, 'prefix': str(prefix), 'method': 'audio-thread FTZ/DAZ once; no code patch', 'started_at': time.time(), 'phase': 'initializing'}
+status = {'applied': False, 'game': game, 'prefix': str(prefix), 'breakpoint_rva': hex(rva), 'method': 'audio-thread FTZ/DAZ once; no code patch', 'started_at': time.time(), 'phase': 'initializing'}
 status_path.write_text(json.dumps(status, indent=2))
 attached = False
 bp = None
@@ -49,7 +61,7 @@ try:
             if not proc.name.isdigit():
                 continue
             try:
-                if (proc / 'comm').read_text().strip() != 'ff7remake_.exe':
+                if (proc / 'comm').read_text().strip() != process_name:
                     continue
                 env = dict(s.split(b'=', 1) for s in (proc / 'environ').read_bytes().split(b'\0') if b'=' in s)
                 if Path(os.fsdecode(env[b'WINEPREFIX'])).resolve() != prefix or not owns(int(proc.name)):
@@ -73,7 +85,7 @@ try:
             break
     if base is None:
         raise RuntimeError('Expected executable image not found')
-    address = base + RVA
+    address = base + rva
     bp = gdb.Breakpoint('*0x%x' % address, temporary=True, internal=True)
     expired = threading.Event()
     def interrupt_wait():
@@ -111,7 +123,10 @@ finally:
     status_path.write_text(json.dumps(status, indent=2))
     print(json.dumps(status))
     if not status['applied']:
-        subprocess.run(['/usr/bin/notify-send', 'FF7 REMAKE', '音声最適化を適用できませんでした。audio-fp-status.jsonを確認してください。'], check=False)
+        try:
+            subprocess.run(['/usr/bin/notify-send', 'FF7 ' + game.upper(), '音声最適化を適用できませんでした。audio-fp-status.jsonを確認してください。'], check=False)
+        except OSError:
+            pass
     result = child.wait()
     print('UMU exit:', result)
     gdb.execute('quit %d' % (result if result >= 0 else 128 - result))

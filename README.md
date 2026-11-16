@@ -1,10 +1,10 @@
-# FF7 Remake Audio Denormal Fix v0.1.0
+# FF7 Remake / Rebirth Audio Denormal Fix v0.2.0
 
 [English](#english) | [日本語](#日本語) | [Changelog](CHANGELOG.md)
 
-A mod that addresses audio dropouts in **FINAL FANTASY VII REMAKE**.
+A mod that addresses audio dropouts in **FINAL FANTASY VII REMAKE** and **FINAL FANTASY VII REBIRTH**.
 
-『FINAL FANTASY VII REMAKE』の音声が途切れる問題に対処するMODです。
+『FINAL FANTASY VII REMAKE』『FINAL FANTASY VII REBIRTH』の音声が途切れる問題に対処するMODです。
 
 ---
 
@@ -36,14 +36,20 @@ The following configuration was tested:
 | Item | Environment |
 |---|---|
 | OS | Linux x86-64 |
-| Proton | CachyOS 11.0-20261005-slr |
-| Game | FF7 Remake EXE build 1.0.0.6 |
+| Proton | CachyOS 11.0-20261005-slr (Remake), 11.0-20261015-slr (Rebirth) |
+| Game | Remake EXE FileVersion 1.0.0.6 / Rebirth EXE FileVersion 1.0.0.0 |
 
 Target executable:
 
 ```text
 End/Binaries/Win64/ff7remake_.exe
+End/Binaries/Win64/ff7rebirth_.exe
 ```
+
+The game is selected automatically from `ff7remake.exe` or `ff7rebirth.exe`
+(or the corresponding shipping EXE). Each title uses its own audio-DSP breakpoint:
+Remake `0x3fe8259`, Rebirth `0x736ab0`. An EXE hash/version/signature is not used
+to reject other builds; the configurations above are the ones tested.
 
 The same approach may work on Windows, but it has not been tested there. Other
 executables have not been tested either.
@@ -69,7 +75,7 @@ directly through Steam.
    and `fix-startup.gdb` in the same directory.
 3. Change the UMU invocation in the launch script.
 
-Before:
+Before (Remake example):
 
 ```sh
 /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
@@ -77,8 +83,16 @@ Before:
 
 After:
 
+Remake:
+
 ```sh
 /usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
+```
+
+Rebirth:
+
+```sh
+/usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7rebirth.exe" "$@"
 ```
 
 Set `$fixdir` to the absolute path of the directory where you extracted the mod.
@@ -128,6 +142,8 @@ is needed.
 
 ### Results
 
+#### Remake
+
 In an environment with audio dropouts, the workaround was compared ON → OFF → ON
 in the same game process and scene.
 
@@ -147,6 +163,15 @@ them from this measurement.
 The original Pulse path also produced zero such gaps in a 30-second recording.
 A separate 15-second Wine Pulse trace recorded zero underflows across 1,500
 `ReleaseBuffer` calls.
+
+#### Rebirth
+
+Subnormal operands were observed in the native audio DSP with FTZ/DAZ disabled.
+The Rebirth-specific startup helper was verified to enable those flags on the
+mixer worker and detach. Short 30-second main-menu recordings had zero interior
+zero spans ≥10 ms with the workaround both ON and OFF; that interval did not
+reproduce the reported dropout, so it is not evidence of a measured dropout cure.
+Long-term gameplay/listening remains unverified.
 
 ### Reference
 
@@ -189,14 +214,19 @@ Enix. It comes without a warranty; use it at your own discretion.
 | 項目 | 環境 |
 |---|---|
 | OS | Linux x86-64 |
-| Proton | CachyOS 11.0-20261005-slr |
-| ゲーム | FF7 Remake EXE build 1.0.0.6 |
+| Proton | CachyOS 11.0-20261005-slr (Remake), 11.0-20261015-slr (Rebirth) |
+| ゲーム | Remake EXE FileVersion 1.0.0.6 / Rebirth EXE FileVersion 1.0.0.0 |
 
 対象EXE：
 
 ```text
 End/Binaries/Win64/ff7remake_.exe
+End/Binaries/Win64/ff7rebirth_.exe
 ```
+
+`ff7remake.exe` / `ff7rebirth.exe`（または各shipping EXE）の名前から対象ゲームを自動選択します。
+音声DSPのブレークポイントはタイトル別で、Remakeは`0x3fe8259`、Rebirthは`0x736ab0`です。
+EXEのハッシュ・バージョン・命令署名による別ビルドの拒否は行いません。上記は検証済みの構成です。
 
 Windowsでも同じ方法で対処できる可能性はありますが、未検証です。異なるEXEでの動作も未確認です。
 
@@ -218,7 +248,7 @@ Windowsでも同じ方法で対処できる可能性はありますが、未検�
 2. 配布ZIPを任意の固定ディレクトリに展開します。`fix-launch.py`と`fix-startup.gdb`は同じディレクトリに置いてください。
 3. 起動スクリプトのUMU実行部分を変更します。
 
-変更前：
+変更前（Remakeの例）：
 
 ```sh
 /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
@@ -226,8 +256,16 @@ Windowsでも同じ方法で対処できる可能性はありますが、未検�
 
 変更後：
 
+Remake:
+
 ```sh
 /usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7remake.exe" -dx11 "$@"
+```
+
+Rebirth:
+
+```sh
+/usr/bin/python3 "$fixdir/fix-launch.py" /usr/bin/umu-run "$game/ff7rebirth.exe" "$@"
 ```
 
 `$fixdir`にはMODを展開したディレクトリの絶対パスを指定してください。
@@ -275,6 +313,8 @@ MODのファイルが残っていても、ランチャーから呼び出さな�
 
 ### 検証結果
 
+#### Remake
+
 音切れが発生していた環境で、同じゲームプロセス・同じ場面のまま、修正ON → OFF → ONの順に比較しました。
 
 48 kHzステレオでホスト側の音声を録音し、左右両チャンネルが同時に10 ms以上連続してゼロになった区間を数えています。録音開始時の無音区間は含めていません。
@@ -288,6 +328,13 @@ MODのファイルが残っていても、ランチャーから呼び出さな�
 修正を無効にすると音声の途切れが再発し、再度有効にすると検出されなくなりました。
 
 元のPulse経路でも30秒間の録音でゼロ区間は0件でした。また、15秒間のWine Pulseトレースでは、1,500回の`ReleaseBuffer`呼び出しに対してunderflowは0件でした。
+
+#### Rebirth
+
+実際の音声DSPで非正規化数とFTZ/DAZ未設定を確認しました。
+Rebirth専用の起動時処理でミキサースレッドへのフラグ適用・デバッガ切り離しを確認しています。
+通常メニューの30秒録音は修正ON/OFFとも10 ms以上の内部ゼロ区間が0件で、その区間では申告された音切れを再現しませんでした。
+そのため、この測定だけで音切れ解消を実証したとはしていません。長時間プレイ・聴感は未確認です。
 
 ### 参考資料
 
